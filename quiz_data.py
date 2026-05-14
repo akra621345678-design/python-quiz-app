@@ -1,6 +1,31 @@
 """Curated quiz items shared by Flask (local) and the static Netlify build."""
 
-CURATED_QUESTIONS = [
+import html as html_module
+import re
+
+from quiz_pdf_questions import PDF_QUESTIONS
+
+
+def _question_dedup_key(question_html: str) -> str:
+    t = html_module.unescape(question_html)
+    t = re.sub(r"<[^>]+>", " ", t)
+    t = re.sub(r"\s+", " ", t)
+    return t.strip().lower()
+
+
+def _merge_pdf_questions(core: list, pdf_rows: list) -> list:
+    seen = {_question_dedup_key(q["question"]) for q in core}
+    out = list(core)
+    for q in pdf_rows:
+        k = _question_dedup_key(q["question"])
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(q)
+    return out
+
+
+_CORE_CURATED = [
     {
         "category": "Library Syntax (Pandas)",
         "question": "Which method is used to get a summary of the numerical columns in a Pandas DataFrame?",
@@ -159,3 +184,5 @@ CURATED_QUESTIONS = [
         "explanation": "Because of how computers store floating-point numbers in binary representation, <code>0.1 + 0.2</code> actually results in <code>0.30000000000000004</code>. Therefore, the equality check returns <code>False</code>. You should use the <code>math.isclose()</code> function when comparing floats.",
     },
 ]
+
+CURATED_QUESTIONS = _merge_pdf_questions(_CORE_CURATED, PDF_QUESTIONS)
