@@ -28,12 +28,20 @@ def _pop_curated_index():
     n = len(CURATED_QUESTIONS)
     deck = session.get("cur_deck") or []
     if not deck:
-        deck = list(range(n))
-        random.shuffle(deck)
-    i = deck.pop()
+        last = session.get("last_cur")
+        guard = 0
+        while True:
+            deck = list(range(n))
+            random.shuffle(deck)
+            guard += 1
+            if n <= 1 or last is None or deck[-1] != last or guard > 50:
+                break
+        session["cur_deck"] = deck
+    idx = deck.pop()
     session["cur_deck"] = deck
+    session["last_cur"] = idx
     session.modified = True
-    return i
+    return idx
 
 
 def _pop_hf_index():
@@ -41,12 +49,20 @@ def _pop_hf_index():
     key = "hf_deck"
     deck = session.get(key) or []
     if not deck:
+        last = session.get("last_hf")
         k = min(150, n) if n else 0
-        deck = random.sample(range(n), k) if k else []
-    i = deck.pop()
+        guard = 0
+        while True:
+            deck = random.sample(range(n), k) if k else []
+            guard += 1
+            if k <= 1 or last is None or not deck or deck[-1] != last or guard > 50:
+                break
+        session[key] = deck
+    idx = deck.pop()
     session[key] = deck
+    session["last_hf"] = idx
     session.modified = True
-    return i
+    return idx
 
 
 # ==========================================

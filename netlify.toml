@@ -4,3 +4,19 @@
 
 [build.environment]
   PYTHON_VERSION = "3.11"
+
+# Avoid stale HTML/JSON after deploys (helps the quiz deck logic reach browsers)
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/quiz-data.json"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

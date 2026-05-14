@@ -207,6 +207,39 @@
     let quizPool = null;
     let curatedIndexDeck = [];
     let hfIndexDeck = [];
+    let lastCuratedPop = null;
+    let lastHfPop = null;
+    let fetchQuestionLock = false;
+
+    const DECK_CUR = 'quiz_curated_deck_v2';
+    const DECK_HF = 'quiz_hf_deck_v2';
+    const LAST_CUR = 'quiz_last_cur_v2';
+    const LAST_HF = 'quiz_last_hf_v2';
+
+    function loadPersistedDecks() {
+        try {
+            const c = sessionStorage.getItem(DECK_CUR);
+            const h = sessionStorage.getItem(DECK_HF);
+            const lc = sessionStorage.getItem(LAST_CUR);
+            const lh = sessionStorage.getItem(LAST_HF);
+            if (c) curatedIndexDeck = JSON.parse(c);
+            if (h) hfIndexDeck = JSON.parse(h);
+            if (lc !== null && lc !== '') lastCuratedPop = JSON.parse(lc);
+            if (lh !== null && lh !== '') lastHfPop = JSON.parse(lh);
+        } catch (_) {
+            curatedIndexDeck = [];
+            hfIndexDeck = [];
+        }
+    }
+
+    function persistDecks() {
+        try {
+            sessionStorage.setItem(DECK_CUR, JSON.stringify(curatedIndexDeck));
+            sessionStorage.setItem(DECK_HF, JSON.stringify(hfIndexDeck));
+            sessionStorage.setItem(LAST_CUR, JSON.stringify(lastCuratedPop));
+            sessionStorage.setItem(LAST_HF, JSON.stringify(lastHfPop));
+        } catch (_) {}
+    }
 
     function shuffleIndices(n) {
         const a = Array.from({ length: n }, (_, i) => i);
@@ -217,21 +250,42 @@
         return a;
     }
 
+    /** Refill deck so the first card drawn (pop from end) is not the same as last round's last card. */
+    function refillDeckAvoidingImmediateRepeat(n, lastPop) {
+        if (n <= 0) return [];
+        if (n === 1) return [0];
+        let next;
+        let guard = 0;
+        do {
+            next = shuffleIndices(n);
+            guard++;
+            const firstDraw = next[next.length - 1];
+            if (lastPop === null || firstDraw !== lastPop || guard > 40) break;
+        } while (true);
+        return next;
+    }
+
     function nextCuratedIndex(pool) {
         const n = pool.curated.length;
         if (curatedIndexDeck.length === 0) {
-            curatedIndexDeck = shuffleIndices(n);
+            curatedIndexDeck = refillDeckAvoidingImmediateRepeat(n, lastCuratedPop);
         }
-        return curatedIndexDeck.pop();
+        const ci = curatedIndexDeck.pop();
+        lastCuratedPop = ci;
+        persistDecks();
+        return ci;
     }
 
     function nextHfIndex(pool) {
         const hf = pool.hf_snippets || [];
         const n = hf.length;
         if (hfIndexDeck.length === 0) {
-            hfIndexDeck = shuffleIndices(n);
+            hfIndexDeck = refillDeckAvoidingImmediateRepeat(n, lastHfPop);
         }
-        return hfIndexDeck.pop();
+        const hi = hfIndexDeck.pop();
+        lastHfPop = hi;
+        persistDecks();
+        return hi;
     }
 
     function shuffleOptions(options) {
@@ -293,9 +347,23 @@
 
     async function loadQuizPool() {
         if (quizPool) return quizPool;
-        const res = await fetch('/quiz-data.json');
+        const res = await fetch('/quiz-data.json?v=2', { cache: 'no-store' });
         if (!res.ok) throw new Error('quiz-data.json missing');
         quizPool = await res.json();
+        loadPersistedDecks();
+        const curN = (quizPool.curated || []).length;
+        const hfN = (quizPool.hf_snippets || []).length;
+        if (curatedIndexDeck.some((i) => typeof i !== 'number' || i < 0 || i >= curN)) {
+            curatedIndexDeck = [];
+            lastCuratedPop = null;
+        }
+        if (hfIndexDeck.some((i) => typeof i !== 'number' || i < 0 || i >= hfN)) {
+            hfIndexDeck = [];
+            lastHfPop = null;
+        }
+        if (lastCuratedPop !== null && (lastCuratedPop < 0 || lastCuratedPop >= curN)) lastCuratedPop = null;
+        if (lastHfPop !== null && (lastHfPop < 0 || lastHfPop >= hfN)) lastHfPop = null;
+        persistDecks();
         return quizPool;
     }
 
@@ -320,34 +388,60 @@
         }
     }
 
+    function delay(ms) {
+        return new Promise((r) => setTimeout(r, ms));
+    }
+
+    function isValidQuestionPayload(d) {
+        return (
+            d &&
+            typeof d.question === 'string' &&
+            Array.isArray(d.options) &&
+            d.options.length > 0 &&
+            d.options.every((o) => typeof o.text === 'string' && typeof o.correct === 'boolean')
+        );
+    }
+
     async function fetchQuestion() {
-        document.getElementById('content-area').classList.remove('question-wrapper');
-        document.getElementById('question-title').innerHTML = `
+        if (fetchQuestionLock) return;
+        fetchQuestionLock = true;
+        try {
+            document.getElementById('content-area').classList.remove('question-wrapper');
+            document.getElementById('question-title').innerHTML = `
             <div class="loading" style="width: 80%;"></div>
             <div class="loading" style="width: 60%;"></div>
             <div class="loading" style="width: 100%; height: 120px; margin-top: 15px;"></div>
         `;
-        document.getElementById('options').innerHTML = '';
-        document.getElementById('feedback').classList.remove('show');
-        document.getElementById('next-btn').style.display = 'none';
+            document.getElementById('options').innerHTML = '';
+            document.getElementById('feedback').classList.remove('show');
+            document.getElementById('next-btn').style.display = 'none';
 
-        try {
-            const res = await fetch('/api/question');
-            if (res.ok) {
-                currentData = await res.json();
-                setTimeout(renderQuestion, 300);
-                return;
+            try {
+                const res = await fetch('/api/question', { cache: 'no-store', credentials: 'same-origin' });
+                const ct = (res.headers.get('content-type') || '').toLowerCase();
+                if (res.ok && ct.includes('application/json')) {
+                    const data = await res.json();
+                    if (isValidQuestionPayload(data)) {
+                        currentData = data;
+                        await delay(300);
+                        renderQuestion();
+                        return;
+                    }
+                }
+            } catch (_) {
+                /* bad route body or offline */
             }
-        } catch (_) {
-            /* offline or static host */
-        }
 
-        try {
-            await fetchQuestionFromStatic();
-            setTimeout(renderQuestion, 300);
-        } catch (e) {
-            document.getElementById('question-title').innerHTML =
-                '<h2>Could not load the quiz. Ensure the site finished building or run <code>python scripts/export_static.py</code> locally.</h2>';
+            try {
+                await fetchQuestionFromStatic();
+                await delay(300);
+                renderQuestion();
+            } catch (e) {
+                document.getElementById('question-title').innerHTML =
+                    '<h2>Could not load the quiz. Ensure the site finished building or run <code>python scripts/export_static.py</code> locally.</h2>';
+            }
+        } finally {
+            fetchQuestionLock = false;
         }
     }
 
