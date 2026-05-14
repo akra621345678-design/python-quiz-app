@@ -211,10 +211,10 @@
     let lastHfPop = null;
     let fetchQuestionLock = false;
 
-    const DECK_CUR = 'quiz_curated_deck_v3';
-    const DECK_HF = 'quiz_hf_deck_v3';
-    const LAST_CUR = 'quiz_last_cur_v3';
-    const LAST_HF = 'quiz_last_hf_v3';
+    const DECK_CUR = 'quiz_curated_deck_v4';
+    const DECK_HF = 'quiz_hf_deck_v4';
+    const LAST_CUR = 'quiz_last_cur_v4';
+    const LAST_HF = 'quiz_last_hf_v4';
 
     function loadPersistedDecks() {
         try {
@@ -347,7 +347,7 @@
 
     async function loadQuizPool() {
         if (quizPool) return quizPool;
-        const res = await fetch('/quiz-data.json?v=3', { cache: 'no-store' });
+        const res = await fetch('/quiz-data.json?v=4', { cache: 'no-store' });
         if (!res.ok) throw new Error('quiz-data.json missing');
         quizPool = await res.json();
         loadPersistedDecks();
