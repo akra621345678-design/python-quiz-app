@@ -205,6 +205,34 @@
     let currentData = null;
     let currentStreak = 0;
     let quizPool = null;
+    let curatedIndexDeck = [];
+    let hfIndexDeck = [];
+
+    function shuffleIndices(n) {
+        const a = Array.from({ length: n }, (_, i) => i);
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
+
+    function nextCuratedIndex(pool) {
+        const n = pool.curated.length;
+        if (curatedIndexDeck.length === 0) {
+            curatedIndexDeck = shuffleIndices(n);
+        }
+        return curatedIndexDeck.pop();
+    }
+
+    function nextHfIndex(pool) {
+        const hf = pool.hf_snippets || [];
+        const n = hf.length;
+        if (hfIndexDeck.length === 0) {
+            hfIndexDeck = shuffleIndices(n);
+        }
+        return hfIndexDeck.pop();
+    }
 
     function shuffleOptions(options) {
         const a = options.map((o) => ({ ...o }));
@@ -281,11 +309,13 @@
         if (!hasHf) useHf = false;
 
         if (useHf) {
-            const row = hf[Math.floor(Math.random() * hf.length)];
+            const hi = nextHfIndex(pool);
+            const row = hf[hi];
             const code = typeof row === 'string' ? row : row.code || row.text || '';
             currentData = buildHfClient(code);
         } else {
-            const q = curated[Math.floor(Math.random() * curated.length)];
+            const ci = nextCuratedIndex(pool);
+            const q = curated[ci];
             currentData = buildCuratedClient(q);
         }
     }

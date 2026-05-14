@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, session
 from datasets import load_dataset
 import random
 import html
@@ -7,6 +7,7 @@ import os
 from quiz_data import CURATED_QUESTIONS
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-quiz-secret-change-in-production")
 _ROOT = os.path.dirname(os.path.abspath(__file__))
 _PUBLIC = os.path.join(_ROOT, "public")
 
@@ -21,6 +22,32 @@ try:
 except Exception as e:
     print(f"Error loading dataset: {e}")
     hf_quiz_pool = []
+
+
+def _pop_curated_index():
+    n = len(CURATED_QUESTIONS)
+    deck = session.get("cur_deck") or []
+    if not deck:
+        deck = list(range(n))
+        random.shuffle(deck)
+    i = deck.pop()
+    session["cur_deck"] = deck
+    session.modified = True
+    return i
+
+
+def _pop_hf_index():
+    n = len(hf_quiz_pool)
+    key = "hf_deck"
+    deck = session.get(key) or []
+    if not deck:
+        k = min(150, n) if n else 0
+        deck = random.sample(range(n), k) if k else []
+    i = deck.pop()
+    session[key] = deck
+    session.modified = True
+    return i
+
 
 # ==========================================
 # 2. ROUTES
@@ -43,7 +70,7 @@ def get_question():
         question_type = "curated"
 
     if question_type == "curated":
-        q_data = random.choice(CURATED_QUESTIONS)
+        q_data = CURATED_QUESTIONS[_pop_curated_index()]
         opts = list(q_data["options"])
         random.shuffle(opts)
         q_data_copy = {**q_data, "options": opts}
@@ -53,7 +80,7 @@ def get_question():
         )
         return jsonify(q_data_copy)
 
-    row = random.choice(hf_quiz_pool)
+    row = hf_quiz_pool[_pop_hf_index()]
 
     code_snippet = row.get("text", "") or row.get("code", "") or row.get("content", "")
     if not code_snippet and len(row) > 0:
