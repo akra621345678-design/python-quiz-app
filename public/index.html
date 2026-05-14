@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Python Dataset Quiz</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --primary: #4f46e5; 
+            --primary-hover: #4338ca;
+            --bg-grad-1: #e0e7ff; 
+            --bg-grad-2: #c7d2fe; 
+            --card-bg: rgba(255, 255, 255, 0.95); 
+            --text: #1e293b; 
+            --text-muted: #64748b;
+            --correct: #10b981; 
+            --correct-bg: #d1fae5;
+            --wrong: #ef4444; 
+            --wrong-bg: #fee2e2;
+            --code-bg: #1e1e1e; 
+            --code-text: #d4d4d4; 
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: linear-gradient(135deg, var(--bg-grad-1), var(--bg-grad-2)); 
+            color: var(--text); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px; 
+        }
+
+        .quiz-container { 
+            background: var(--card-bg); 
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+            border-radius: 16px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
+            width: 100%; 
+            max-width: 800px; 
+            padding: 40px; 
+            animation: fadeInUp 0.6s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f1f5f9;
+        }
+
+        .streak-counter {
+            background: #fef3c7;
+            color: #d97706;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        h2 { font-weight: 800; line-height: 1.4; font-size: 1.3em; }
+
+        pre { 
+            background: var(--code-bg); 
+            color: var(--code-text); 
+            padding: 20px; 
+            border-radius: 10px; 
+            overflow-x: auto; 
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9em;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        code { font-family: 'Fira Code', monospace; color: #ec4899; }
+
+        .options { display: flex; flex-direction: column; gap: 12px; margin-top: 25px; }
+
+        .option { 
+            background: white; 
+            border: 2px solid #e2e8f0; 
+            padding: 16px 20px; 
+            border-radius: 12px; 
+            cursor: pointer; 
+            text-align: left; 
+            font-size: 1em; 
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            color: var(--text-muted);
+        }
+
+        .option:hover:not(:disabled) { 
+            border-color: var(--primary); 
+            color: var(--primary);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.15);
+        }
+
+        .option.correct { 
+            background: var(--correct-bg); 
+            border-color: var(--correct); 
+            color: #065f46; 
+            animation: pop 0.4s ease;
+        }
+
+        .option.wrong { 
+            background: var(--wrong-bg); 
+            border-color: var(--wrong); 
+            color: #991b1b; 
+            animation: shake 0.4s ease;
+        }
+
+        .feedback { 
+            margin-top: 25px; 
+            padding: 20px; 
+            border-radius: 12px; 
+            display: none; 
+            font-size: 0.95em;
+            line-height: 1.6;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.4s ease;
+        }
+
+        .feedback.show { 
+            display: block; 
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        button.next-btn { 
+            background: var(--primary); 
+            color: white; 
+            border: none; 
+            padding: 14px 28px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 1em; 
+            font-weight: 800;
+            display: none; 
+            margin-top: 25px; 
+            float: right; 
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3);
+        }
+
+        button.next-btn:hover { 
+            background: var(--primary-hover); 
+            transform: scale(1.02);
+        }
+
+        .loading {
+            height: 20px;
+            background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        .question-wrapper { animation: slideIn 0.4s ease-out; }
+    </style>
+</head>
+<body>
+
+<div class="quiz-container">
+    <div class="header">
+        <span style="font-weight: 800; color: var(--primary);">Ultimate Python DB</span>
+        <div class="streak-counter">🔥 Streak: <span id="streak">0</span></div>
+    </div>
+
+    <div id="content-area">
+        <div id="question-title">
+            <div class="loading" style="width: 80%;"></div>
+            <div class="loading" style="width: 60%;"></div>
+            <div class="loading" style="width: 90%; height: 100px; margin-top: 15px;"></div>
+        </div>
+        
+        <div class="options" id="options"></div>
+        <div class="feedback" id="feedback"></div>
+        
+        <button class="next-btn" id="next-btn" onclick="fetchQuestion()">Next Snippet ➔</button>
+        <div style="clear: both;"></div>
+    </div>
+</div>
+
+<script>
+    let currentData = null;
+    let currentStreak = 0;
+    let quizPool = null;
+
+    function shuffleOptions(options) {
+        const a = options.map((o) => ({ ...o }));
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
+
+    function escapeHtml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function buildCuratedClient(q) {
+        const opts = shuffleOptions(q.options);
+        const cat = q.category;
+        const badge =
+            "<span style='color: #4f46e5; font-size: 0.8em; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px;'>" +
+            cat +
+            '</span><br>';
+        return {
+            question: badge + q.question,
+            options: opts,
+            explanation: q.explanation,
+        };
+    }
+
+    function buildHfClient(codeSnippet) {
+        let code = codeSnippet || '';
+        if (code.length > 400) {
+            code = code.slice(0, 400) + '\n\n... [truncated] ...';
+        }
+        const safe = escapeHtml(code);
+        const badge =
+            "<span style='color: #4f46e5; font-size: 0.8em; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px;'>Predicting Output / Code Analysis</span><br>";
+        const opts = shuffleOptions([
+            { text: 'It contains valid Python syntax and functions as written.', correct: true },
+            { text: 'It contains a critical IndentationError.', correct: false },
+            { text: 'It lacks required imports to run.', correct: false },
+            { text: 'It will cause an infinite loop.', correct: false },
+        ]);
+        return {
+            question:
+                badge +
+                'Analyze the following real-world Python snippet. What is likely true about this code?<br><pre><code>' +
+                safe +
+                '</code></pre>',
+            options: opts,
+            explanation:
+                "This snippet is pulled from the bundled dataset (same style as <code>jtatman/python-code-dataset-500k</code> on the live Flask server).",
+        };
+    }
+
+    async function loadQuizPool() {
+        if (quizPool) return quizPool;
+        const res = await fetch('/quiz-data.json');
+        if (!res.ok) throw new Error('quiz-data.json missing');
+        quizPool = await res.json();
+        return quizPool;
+    }
+
+    async function fetchQuestionFromStatic() {
+        const pool = await loadQuizPool();
+        const curated = pool.curated || [];
+        const hf = pool.hf_snippets || [];
+        const hasHf = hf.length > 0;
+        let useHf = hasHf && Math.random() < 0.5;
+        if (!curated.length) throw new Error('no curated questions');
+        if (!hasHf) useHf = false;
+
+        if (useHf) {
+            const row = hf[Math.floor(Math.random() * hf.length)];
+            const code = typeof row === 'string' ? row : row.code || row.text || '';
+            currentData = buildHfClient(code);
+        } else {
+            const q = curated[Math.floor(Math.random() * curated.length)];
+            currentData = buildCuratedClient(q);
+        }
+    }
+
+    async function fetchQuestion() {
+        document.getElementById('content-area').classList.remove('question-wrapper');
+        document.getElementById('question-title').innerHTML = `
+            <div class="loading" style="width: 80%;"></div>
+            <div class="loading" style="width: 60%;"></div>
+            <div class="loading" style="width: 100%; height: 120px; margin-top: 15px;"></div>
+        `;
+        document.getElementById('options').innerHTML = '';
+        document.getElementById('feedback').classList.remove('show');
+        document.getElementById('next-btn').style.display = 'none';
+
+        try {
+            const res = await fetch('/api/question');
+            if (res.ok) {
+                currentData = await res.json();
+                setTimeout(renderQuestion, 300);
+                return;
+            }
+        } catch (_) {
+            /* offline or static host */
+        }
+
+        try {
+            await fetchQuestionFromStatic();
+            setTimeout(renderQuestion, 300);
+        } catch (e) {
+            document.getElementById('question-title').innerHTML =
+                '<h2>Could not load the quiz. Ensure the site finished building or run <code>python scripts/export_static.py</code> locally.</h2>';
+        }
+    }
+
+    function renderQuestion() {
+        const contentArea = document.getElementById('content-area');
+        contentArea.classList.remove('question-wrapper');
+        void contentArea.offsetWidth;
+        contentArea.classList.add('question-wrapper');
+
+        document.getElementById('question-title').innerHTML = '<h2>' + currentData.question + '</h2>';
+        const optionsContainer = document.getElementById('options');
+        optionsContainer.innerHTML = '';
+
+        currentData.options.forEach((opt) => {
+            const btn = document.createElement('button');
+            btn.className = 'option';
+            btn.innerHTML = opt.text;
+            btn.onclick = () => selectAnswer(btn, opt);
+            optionsContainer.appendChild(btn);
+        });
+    }
+
+    function selectAnswer(btn, opt) {
+        const allBtns = document.querySelectorAll('.option');
+        allBtns.forEach((b) => (b.disabled = true));
+
+        if (opt.correct) {
+            btn.classList.add('correct');
+            currentStreak++;
+            document.getElementById('streak').innerText = currentStreak;
+        } else {
+            btn.classList.add('wrong');
+            currentStreak = 0;
+            document.getElementById('streak').innerText = currentStreak;
+
+            allBtns.forEach((b, i) => {
+                if (currentData.options[i].correct) b.classList.add('correct');
+            });
+        }
+
+        const fb = document.getElementById('feedback');
+        fb.innerHTML = `
+            <div style="font-size: 1.1em; margin-bottom: 8px; color: ${opt.correct ? 'var(--correct)' : 'var(--wrong)'}">
+                <strong>${opt.correct ? '🎉 Correct!' : '❌ Incorrect'}</strong>
+            </div>
+            ${currentData.explanation}
+        `;
+        fb.style.background = opt.correct ? 'var(--correct-bg)' : 'var(--wrong-bg)';
+        fb.style.borderLeft = `4px solid ${opt.correct ? 'var(--correct)' : 'var(--wrong)'}`;
+        fb.classList.add('show');
+
+        document.getElementById('next-btn').style.display = 'block';
+    }
+
+    fetchQuestion();
+</script>
+</body>
+</html>

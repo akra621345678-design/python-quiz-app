@@ -1,0 +1,6 @@
+[build]
+  publish = "public"
+  command = "python scripts/export_static.py"
+
+[build.environment]
+  PYTHON_VERSION = "3.11"
